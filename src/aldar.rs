@@ -9,15 +9,15 @@
 pub struct GlyphSet(&'static str, &'static str, &'static str);
 
 impl Glyphs for GlyphSet {
-    fn pipe(&self) -> &'static str {
+    fn pipe(&self) -> &str {
         self.0
     }
 
-    fn item(&self) -> &'static str {
+    fn item(&self) -> &str {
         self.2
     }
 
-    fn last(&self) -> &'static str {
+    fn last(&self) -> &str {
         self.1
     }
 }
@@ -31,7 +31,7 @@ pub const UNICODE_GLYPHSET: GlyphSet = GlyphSet("│", "└──", "├──")
 pub const ASCII_GLYPHSET: GlyphSet = GlyphSet("|", "`--", "|--");
 
 trait Glyphs {
-    fn pipe(&self) -> &'static str;
-    fn item(&self) -> &'static str;
-    fn last(&self) -> &'static str;
+    fn pipe(&self) -> &str;
+    fn item(&self) -> &str;
+    fn last(&self) -> &str;
 }
