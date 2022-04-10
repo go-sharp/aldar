@@ -5,6 +5,7 @@
 
 use clap::Parser;
 use colored::*;
+use std::{fs::read_dir, io, io::Write};
 
 mod aldar;
 
@@ -95,5 +96,19 @@ fn main() {
 
     
     print!("{:?} -> {:?}", aldar::ASCII_GLYPHSET, aldar::UNICODE_GLYPHSET);
+
+    let iter = read_dir(".").unwrap();
+
+    for item in iter {
+        println!("-> {:?}, {:?}", item.as_ref().unwrap().path(), item.unwrap().file_type().unwrap().is_dir())
+    }
+
+    let mut stdout = io::stdout();
+    write!(stdout, "Hello World");
+
+    let mut myvec: Vec<String> = Vec::new();
+    myvec.push("value".to_owned());
+
+    println!(">>>>> {:?}", myvec);
 
 }

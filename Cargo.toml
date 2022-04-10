@@ -4,12 +4,12 @@ description = "A simple tree clone in rust (aldar is the word for trees in Queny
 license = "BSD 2-Clause \"Simplified\" License"
 version = "0.1.0"
 edition = "2021"
-authors = [ "Sandro Dallo <sandro@dallo.biz>" ]
 repository = "https://github.com/go-sharp/aldar"
 keywords = [ "tree", "term", "listing", "directory" ]
 
 [dependencies]
 colored = "2.0.0"
+regex = "1.5.5"
 
 [dependencies.clap]
 version = "3.1.8"
