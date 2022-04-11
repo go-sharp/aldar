@@ -3,11 +3,13 @@
 // Use of this source code is governed by an BSD-style
 // license that can be found in the LICENSE file.
 
+mod aldar;
+
 use clap::Parser;
 use colored::*;
 use std::{fs::read_dir, io, io::Write};
 
-mod aldar;
+
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
@@ -44,13 +46,7 @@ struct Args {
         long = "level",
         help = "Descend only level directories deep"
     )]
-    level: Option<usize>,
-
-    #[clap(
-        long = "match-dirs",
-        help = "Include directory names in -I pattern matching"
-    )]
-    match_dirs: bool,
+    level: Option<i32>,
 
     #[clap(
         short = 'f',
@@ -110,5 +106,6 @@ fn main() {
     myvec.push("value".to_owned());
 
     println!(">>>>> {:?}", myvec);
+
 
 }

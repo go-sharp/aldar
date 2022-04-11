@@ -7,7 +7,7 @@ use regex::{RegexSet, RegexSetBuilder};
 use std::{
     env,
     path::PathBuf,
-    io::{Write, stdout, self}
+    io::{Write, self}
 };
 
 /// Represents a glyphset.
@@ -34,24 +34,23 @@ pub const UNICODE_GLYPHSET: GlyphSet = GlyphSet("│", "└──", "├──")
 /// Unicode glyphset uses unicode charachters.
 pub const ASCII_GLYPHSET: GlyphSet = GlyphSet("|", "`--", "|--");
 
-trait Glyphs {
+pub trait Glyphs {
     fn pipe(&self) -> String;
     fn item(&self) -> String;
     fn last(&self) -> String;
 }
 
 
-pub struct Aldar<'a> {
-    show_hidden: bool,
+pub struct Aldar {
+    show_hidden_files: bool,
     dir_only: bool,
-    ignore_case: bool,
-    match_dirs: bool,
-    ascii_only: bool,
+    ignore_case: bool,    
     level: i64,
 
     path: PathBuf,
 
-    output: &'a (dyn Write + 'a),
+    output: Box<dyn Write>,
+    glyphs: Box<dyn Glyphs>,
 
     // Formatting options
     print_fullpath: bool,
@@ -67,21 +66,21 @@ pub struct Aldar<'a> {
     include_matcher: Option<RegexSet>,
 }
 
-impl<'a> Aldar<'a> {
+impl Aldar {
+    /// Creates a new Aldar command.
     pub fn new() -> Self {
         let mut default = PathBuf::new();
         default.push(".");
 
         let current_dir = env::current_dir().unwrap_or(default);     
         Aldar {
-            show_hidden: false,
+            show_hidden_files: false,
             dir_only: false,
-            ignore_case: false,
-            match_dirs: false,
-            ascii_only: false,
+            ignore_case: false,            
             level: -1,
             path: current_dir,
-            output: io::stdout().by_ref(),
+            glyphs: Box::new(UNICODE_GLYPHSET),
+            output: Box::new(io::stdout()),
             print_fullpath: false,
             print_size: false,
             human_readanle: false,
@@ -92,4 +91,30 @@ impl<'a> Aldar<'a> {
             include_matcher: None,
         }
     }
+
+    /// Configure whether or not hidden files should be printed.
+    pub fn show_hidden<'a>(&'a mut self, show_hidden: bool) -> &'a mut Aldar {
+        self.show_hidden_files = show_hidden;
+        self
+    }
+
+    /// Configures whether or not only directories should be printed.
+    pub fn show_dirs_only<'a>(&'a mut self, show_dirs_only: bool) -> &'a mut Aldar {
+        self.dir_only = show_dirs_only;
+        self
+    }
+
+    /// Configures whether or not to ignore case when pattern matching is used.
+    pub fn case_sensitive<'a>(&'a mut self, ignore_case: bool) -> &'a mut Aldar {
+        self.ignore_case = ignore_case;
+        self
+    }
+
+    /// Configures whether or not to use asc
+    pub fn use_glyphset<'a>(&'a mut self, glyphs: Box<dyn Glyphs>) -> &'a mut Aldar {
+        self.glyphs = glyphs;
+        self 
+    }
+
+
 }
