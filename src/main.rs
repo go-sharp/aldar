@@ -1,4 +1,4 @@
-// Copyright © 2018 The Aldar Authors
+// Copyright © 2022 The Aldar Authors
 //
 // Use of this source code is governed by an BSD-style
 // license that can be found in the LICENSE file.
@@ -8,6 +8,8 @@ mod aldar;
 use clap::Parser;
 use colored::*;
 use std::{fs::read_dir, io, io::Write};
+
+use crate::aldar::Aldar;
 
 
 
@@ -84,6 +86,23 @@ struct Args {
 }
 
 
+impl<'a> From<Args> for Aldar<'a> {
+    fn from(args: Args) -> Self {
+        let al= Aldar::new().case_sensitive(args.ignore_case)
+        .show_dirs_only(args.dir_only)
+        .do_replace_nonprintable_chars(args.replace_nonprintable)
+        .show_hidden(args.all_files)
+        .use_max_level(args.level.unwrap_or_else(|| -1))
+        .use_glyphset(match args.ascii {
+             true => &aldar::ASCII_GLYPHSET,
+             false => &aldar::UNICODE_GLYPHSET,
+        });
+        al
+    }
+}
+
+
+
 fn main() {
     // colored::control::set_override(false);
     println!("{} Hello, world!", "Error:".red());
@@ -107,5 +126,9 @@ fn main() {
 
     println!(">>>>> {:?}", myvec);
 
+    // let mut a: Aldar = args.into();
+    let mut a = Aldar::new();
+
+    a.run();
 
 }
