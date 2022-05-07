@@ -7,11 +7,11 @@ mod aldar;
 
 use clap::Parser;
 use colored::*;
-use std::{fs::read_dir, io, io::Write};
+use std::process;
+use std::fs::File;
+
 
 use crate::aldar::Aldar;
-
-
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
@@ -85,50 +85,57 @@ struct Args {
     path: Option<String>,
 }
 
-
-impl<'a> From<Args> for Aldar<'a> {
-    fn from(args: Args) -> Self {
-        let al= Aldar::new().case_sensitive(args.ignore_case)
-        .show_dirs_only(args.dir_only)
-        .do_replace_nonprintable_chars(args.replace_nonprintable)
-        .show_hidden(args.all_files)
-        .use_max_level(args.level.unwrap_or_else(|| -1))
-        .use_glyphset(match args.ascii {
-             true => &aldar::ASCII_GLYPHSET,
-             false => &aldar::UNICODE_GLYPHSET,
-        });
-        al
-    }
-}
-
-
-
 fn main() {
     // colored::control::set_override(false);
-    println!("{} Hello, world!", "Error:".red());
-    let args = Args::parse();
-    println!("{:?}", args);
+    // println!("{} Hello, world!", "Error:".red());
+    let args: Args = Args::parse();
 
-    
-    print!("{:?} -> {:?}", aldar::ASCII_GLYPHSET, aldar::UNICODE_GLYPHSET);
 
-    let iter = read_dir(".").unwrap();
-
-    for item in iter {
-        println!("-> {:?}, {:?}", item.as_ref().unwrap().path(), item.unwrap().file_type().unwrap().is_dir())
+    if args.no_colors || args.output.is_some() {
+        colored::control::set_override(false);
     }
-
-    let mut stdout = io::stdout();
-    write!(stdout, "Hello World");
-
-    let mut myvec: Vec<String> = Vec::new();
-    myvec.push("value".to_owned());
-
-    println!(">>>>> {:?}", myvec);
 
     // let mut a: Aldar = args.into();
     let mut a = Aldar::new();
+    let aldar = a.use_path(args.path.unwrap_or_else(|| ".".to_string()))
+        .show_hidden(args.all_files)
+        .show_dirs_only(args.dir_only)
+        .case_sensitive(args.ignore_case)
+        .use_glyphset(match args.ascii {
+            true => Box::new(aldar::ASCII_GLYPHSET),
+            false => Box::new(aldar::UNICODE_GLYPHSET),
+        })
+        .use_max_level(args.level.unwrap_or_else(|| -1))
+        .show_fullpath(args.print_fullpath)
+        .show_size(args.size)
+        .show_human_readable(args.human_readable)
+        .do_replace_nonprintable_chars(args.replace_nonprintable);
 
-    a.run();
 
+    let error_str = "Error:".red();
+
+    
+    if let Some(output) = args.output {
+        let result = File::create(output.clone());
+        if result.is_err() {
+            println!("{} failed to open file {}: {}", error_str, output, result.unwrap_err());
+            process::exit(1);
+        }
+
+        aldar.use_writer(Box::new(result.unwrap()));        
+    }
+
+    if let Some(pattern) = args.include_pattern {
+        let v: Vec<&str> = pattern.iter().map(String::as_ref).collect();
+        aldar.set_include_patterns(&v);
+    }
+
+    if let Some(pattern) = args.exclude_pattern {
+        let v: Vec<&str> = pattern.iter().map(String::as_ref).collect();
+        aldar.set_exclude_patterns(&v);
+    }
+
+    if let Err(e) = aldar.run() {
+        println!("{} {}", error_str, e);
+    }
 }

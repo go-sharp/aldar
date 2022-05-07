@@ -4,10 +4,12 @@
 // license that can be found in the LICENSE file.
 
 use regex::{RegexSet, RegexSetBuilder};
+use simple_error::SimpleError;
 use std::{
     env,
+    error::Error,
     io::{self, Write},
-    path::PathBuf, error::Error,
+    path::PathBuf,
 };
 
 /// Represents a glyphset.
@@ -40,8 +42,7 @@ pub trait Glyphs {
     fn last(&self) -> String;
 }
 
-
-pub struct Aldar<'a> {
+pub struct Aldar {
     show_hidden_files: bool,
     dir_only: bool,
     ignore_case: bool,
@@ -50,7 +51,7 @@ pub struct Aldar<'a> {
     path: PathBuf,
 
     output: Box<dyn Write>,
-    glyphs: &'a dyn Glyphs,
+    glyphs: Box<dyn Glyphs>,
 
     // Formatting options
     print_fullpath: bool,
@@ -70,20 +71,20 @@ pub struct Aldar<'a> {
     proc_files: u64,
 }
 
-impl<'a> Aldar<'a>{
+impl Aldar {
     /// Creates a new Aldar command.
-    pub fn new() -> Aldar<'a> {
+    pub fn new() -> Self {
         let mut default = PathBuf::new();
         default.push(".");
 
         let current_dir = env::current_dir().unwrap_or(default);
-        Aldar {
+        Self {
             show_hidden_files: false,
             dir_only: false,
             ignore_case: false,
             level: -1,
             path: current_dir,
-            glyphs: &UNICODE_GLYPHSET,
+            glyphs: Box::new(UNICODE_GLYPHSET),
             output: Box::new(io::stdout()),
             print_fullpath: false,
             print_size: false,
@@ -98,88 +99,90 @@ impl<'a> Aldar<'a>{
         }
     }
 
+    // Configures to use given writer.
+    pub fn use_writer(&mut self, writer: Box<dyn Write>) -> &mut Aldar {
+        self.output = writer;
+        self
+    }
+
     // Configures on which path aldar should operate.
-    pub fn use_path(&'a mut self, path: &str) -> &'a mut Aldar {
+    pub fn use_path(&mut self, path: String) -> &mut Aldar {
         self.path.clear();
         self.path.push(path.to_owned());
-        return self
+        self
     }
 
     /// Configure whether or not hidden files should be printed.
-    pub fn show_hidden(&'a mut self, show_hidden: bool) -> &'a mut Aldar {
+    pub fn show_hidden(&mut self, show_hidden: bool) -> &mut Aldar {
         self.show_hidden_files = show_hidden;
         self
     }
 
     /// Configures whether or not only directories should be printed.
-    pub fn show_dirs_only(&'a mut self, show_dirs_only: bool) -> &'a mut Aldar {
+    pub fn show_dirs_only(&mut self, show_dirs_only: bool) -> &mut Aldar {
         self.dir_only = show_dirs_only;
         self
     }
 
     /// Configures whether or not to ignore case when pattern matching is used.
-    pub fn case_sensitive(&'a mut self, ignore_case: bool) -> &'a mut Aldar {
+    pub fn case_sensitive(&mut self, ignore_case: bool) -> &mut Aldar {
         self.ignore_case = ignore_case;
         self
     }
 
     /// Configures which glyphset to use.
-    pub fn use_glyphset<T: Glyphs>(&'a mut self, glyphs: &'a T) -> &'a mut Aldar {
+    pub fn use_glyphset(&mut self, glyphs: Box<dyn Glyphs>) -> &mut Aldar {
         self.glyphs = glyphs;
         self
     }
 
     /// Configures how deep directory recursion should go (default: -1 unrestricted).
-    pub fn use_max_level(&'a mut self, lvl: i32) -> &'a mut Aldar {
+    pub fn use_max_level(&mut self, lvl: i32) -> &mut Aldar {
         self.level = lvl;
         self
     }
 
     /// Configures whether to show full path for items or not.
-    pub fn show_fullpath(&'a mut self, show_fullpath: bool) -> &'a mut Aldar {
+    pub fn show_fullpath(&mut self, show_fullpath: bool) -> &mut Aldar {
         self.print_fullpath = show_fullpath;
         self
     }
 
     /// Configures whether to show size for items or not.
-    pub fn show_size(&'a mut self, show_size: bool) -> &'a mut Aldar {
+    pub fn show_size(&mut self, show_size: bool) -> &mut Aldar {
         self.print_size = show_size;
         self
     }
 
     /// Configures whether to show size in a human readable manner for items or not.
-    pub fn show_human_readable(&'a mut self, show_human_readable: bool) -> &'a mut Aldar {
+    pub fn show_human_readable(&mut self, show_human_readable: bool) -> &mut Aldar {
         self.human_readable = show_human_readable;
         self
     }
 
     /// Configures whether to replace non printables characters with a ?.
-    pub fn do_replace_nonprintable_chars(
-        &'a mut self,
-        replace_nonprintables: bool,
-    ) -> &'a mut Aldar {
+    pub fn do_replace_nonprintable_chars(&mut self, replace_nonprintables: bool) -> &mut Aldar {
         self.replace_nonprintables = replace_nonprintables;
         self
     }
 
     /// Configures aldar to use given strings as include patterns.
-    pub fn set_include_patterns(&'a mut self, patterns: &[&'a str]) -> &'a mut Aldar {
+    pub fn set_include_patterns(&mut self, patterns: &[&str]) -> &mut Aldar {
         self.include_pattern = Some(RegexSetBuilder::new(patterns));
         self
     }
 
     /// Configures aldar to use given strings as exclude patterns.
-    pub fn set_exclude_patterns(&'a mut self, patterns: &[&'a str]) -> &'a mut Aldar {
+    pub fn set_exclude_patterns(&mut self, patterns: &[&str]) -> &mut Aldar {
         self.exclude_pattern = Some(RegexSetBuilder::new(patterns));
         self
     }
 
-    pub fn run(&'a mut self) -> Result<(), Box<dyn Error>> {
-
+    pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
         if let Err(e) = writeln!(self.output.as_mut(), "Hello World! Bye") {
             return Err(Box::new(e));
         }
-        
-        Ok(())
+
+        Err(Box::new(SimpleError::new("Just a test")))
     }
 }

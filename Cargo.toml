@@ -10,7 +10,11 @@ keywords = [ "tree", "term", "listing", "directory" ]
 [dependencies]
 colored = "2.0.0"
 regex = "1.5.5"
+simple-error = "0.2.3"
 
 [dependencies.clap]
 version = "3.1.8"
 features = [ "derive" ]
+
+[profile.release]
+strip = true
