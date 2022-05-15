@@ -10,7 +10,9 @@ use std::{
     error::Error,
     io::{self, Write},
     path::PathBuf,
+    fs::{self, DirEntry},
 };
+use colored::*;
 
 /// Represents a glyphset.
 #[derive(Debug)]
@@ -179,10 +181,78 @@ impl Aldar {
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
-        if let Err(e) = writeln!(self.output.as_mut(), "Hello World! Bye") {
-            return Err(Box::new(e));
+        self.proc_dirs = 0;
+        self.proc_files = 0;
+
+        // Build include pattern if any was specified
+        if let Some(builder) = self.include_pattern.as_mut() {
+            builder.case_insensitive(self.ignore_case);
+            let matcher = builder.build();
+            if matcher.is_err() {                
+                return Err(Box::new(SimpleError::new("invalid include pattern specified")))
+            }
+
+            self.include_matcher = Some(matcher.unwrap());
         }
 
+        // Build exclude pattern if any was specified
+        if let Some(builder) = self.exclude_pattern.as_mut() {
+            builder.case_insensitive(self.ignore_case);
+            let matcher = builder.build();
+            if matcher.is_err() {                
+                return Err(Box::new(SimpleError::new("invalid exclude pattern specified")))
+            }
+
+            self.exclude_matcher = Some(matcher.unwrap());
+        }
+
+        let mut working_dir = self.path.to_str().unwrap_or_else(|| ".").to_string();
+        if self.print_fullpath {
+            working_dir = fs::canonicalize(working_dir)?.display().to_string();
+        }     
+        
+        
+        writeln!(self.output.as_mut(), "{}", working_dir.blue())?;
+
+
+        for entry in self.fetch_directory(&working_dir)? {
+            println!("{}", entry.path().display().to_string());
+        }
+
+        
+
+        // if let Err(e) = writeln!(self.output.as_mut(), "Hello World! Bye") {
+        //     return Err(Box::new(e));
+        // }
+
         Err(Box::new(SimpleError::new("Just a test")))
+    }
+
+    fn fetch_directory(&self, working_dir: &str) -> Result<Vec<DirEntry>, Box<dyn Error>> {
+        if let Some(set) = self.exclude_matcher.as_ref() {
+            if set.is_match(working_dir) {
+                return Ok(vec![])
+            }
+        }
+
+        let entries: Vec<DirEntry> = fs::read_dir(working_dir)?.filter_map(|r| {
+            if !r.is_ok() {
+                return None;
+            }
+
+            
+
+            let entry = r.unwrap();                   
+            // if let Some(matcher) = self.exclude_matcher.as_ref() {
+            //     if matcher.is_match(text)
+            // }
+            
+            
+
+            Some(entry)
+        }).collect();       
+
+
+        Ok(entries)
     }
 }

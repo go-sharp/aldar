@@ -90,12 +90,11 @@ fn main() {
     // println!("{} Hello, world!", "Error:".red());
     let args: Args = Args::parse();
 
-
+    // Disable color if specified or a file is used as output
     if args.no_colors || args.output.is_some() {
         colored::control::set_override(false);
     }
-
-    // let mut a: Aldar = args.into();
+    
     let mut a = Aldar::new();
     let aldar = a.use_path(args.path.unwrap_or_else(|| ".".to_string()))
         .show_hidden(args.all_files)
