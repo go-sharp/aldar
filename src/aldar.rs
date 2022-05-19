@@ -10,7 +10,7 @@ use std::{
     error::Error,
     io::{self, Write},
     path::PathBuf,
-    fs::{self, DirEntry},
+    fs::{self, DirEntry, FileType}, cmp::Ordering,
 };
 use colored::*;
 
@@ -23,12 +23,12 @@ impl Glyphs for GlyphSet {
         self.0.to_owned()
     }
 
-    fn item(&self) -> String {
-        self.2.to_owned()
-    }
-
     fn last(&self) -> String {
         self.1.to_owned()
+    }
+
+    fn item(&self) -> String {
+        self.2.to_owned()
     }
 }
 
@@ -71,6 +71,10 @@ pub struct Aldar {
     // Statistics
     proc_dirs: u64,
     proc_files: u64,
+
+    indent: Vec<String>,
+    sz_last: usize,
+    sz_item: usize,
 }
 
 impl Aldar {
@@ -98,6 +102,9 @@ impl Aldar {
             include_matcher: None,
             proc_dirs: 0,
             proc_files: 0,
+            indent: vec![],
+            sz_item: UNICODE_GLYPHSET.item().chars().count(),
+            sz_last: UNICODE_GLYPHSET.last().chars().count() + 1,
         }
     }
 
@@ -135,6 +142,8 @@ impl Aldar {
     /// Configures which glyphset to use.
     pub fn use_glyphset(&mut self, glyphs: Box<dyn Glyphs>) -> &mut Aldar {
         self.glyphs = glyphs;
+        self.sz_item = UNICODE_GLYPHSET.item().chars().count();
+        self.sz_last = UNICODE_GLYPHSET.last().chars().count() + 1;
         self
     }
 
@@ -206,18 +215,23 @@ impl Aldar {
             self.exclude_matcher = Some(matcher.unwrap());
         }
 
-        let mut working_dir = self.path.to_str().unwrap_or_else(|| ".").to_string();
-        if self.print_fullpath {
-            working_dir = fs::canonicalize(working_dir)?.display().to_string();
-        }     
+        let working_dir = self.path.to_str().unwrap_or_else(|| ".").to_string();
+        // if self.print_fullpath {
+        //     working_dir = fs::canonicalize(working_dir)?.display().to_string();
+        // }     
         
         
         writeln!(self.output.as_mut(), "{}", working_dir.blue())?;
 
 
-        for entry in self.fetch_directory(&working_dir)? {
-            println!("{}", entry.path().display().to_string());
-        }
+
+        // for entry in self.fetch_directory(&working_dir)? {
+        //     self.print_entry(&entry, false);
+
+        //     println!("{}", entry.file_name().to_str().unwrap());
+        // }
+
+        self.show_dir(&working_dir).ok();
 
         
 
@@ -228,6 +242,32 @@ impl Aldar {
         Err(Box::new(SimpleError::new("Just a test")))
     }
 
+
+    fn show_dir(&mut self, working_dir: &str) -> Result<(), Box<dyn Error>>  {
+        let dirs = self.fetch_directory(working_dir)?;
+        let sz = dirs.len();
+
+        let is_dir = |x: io::Result<FileType>| match x {
+            Ok(ft) => ft.is_dir(),
+             _ => false,
+        };
+
+
+        for (i, entry) in dirs.iter().enumerate() {
+            self.print_entry(entry, sz == i+1);
+                  
+            if is_dir(entry.file_type()) {                
+                if let Some(p) = entry.path().to_str() {
+                    self.do_indent(sz == i+1);
+                    self.show_dir(p).ok();
+                    self.do_unindent();
+                } 
+            }
+        }
+
+        Ok(())
+    }
+
     fn fetch_directory(&self, working_dir: &str) -> Result<Vec<DirEntry>, Box<dyn Error>> {
         if let Some(set) = self.exclude_matcher.as_ref() {
             if set.is_match(working_dir) {
@@ -235,7 +275,7 @@ impl Aldar {
             }
         }
 
-        let entries: Vec<DirEntry> = fs::read_dir(working_dir)?.filter_map(|r| {
+        let mut entries: Vec<DirEntry> = fs::read_dir(working_dir)?.filter_map(|r| {
             if !r.is_ok() {
                 return None;
             }
@@ -243,16 +283,62 @@ impl Aldar {
             
 
             let entry = r.unwrap();                   
-            // if let Some(matcher) = self.exclude_matcher.as_ref() {
-            //     if matcher.is_match(text)
-            // }
-            
-            
+            if let Some(matcher) = self.include_matcher.as_ref() {
+                if !matcher.is_match(entry.file_name().to_str().unwrap()) {
+                    return None
+                }
+            }
+
+            if let Some(matcher) = self.exclude_matcher.as_ref() {
+                if matcher.is_match(entry.file_name().to_str().unwrap()) {
+                    return None
+                }
+            }        
 
             Some(entry)
         }).collect();       
 
 
+        entries.sort_by(|a, b| {
+            if a.path().is_dir() && b.path().is_file() {
+                return Ordering::Less;
+            }
+
+            if b.path().is_dir() && a.path().is_file() {
+                return Ordering::Greater;
+            }
+
+            a.path().as_path().cmp(b.path().as_path())
+        });
+        
+
         Ok(entries)
+    }
+
+    fn print_entry(&mut self, entry: &DirEntry, last: bool) {
+        let mut indent = self.indent.clone();
+        if last {
+            indent.push(self.glyphs.last());
+        } else {
+            indent.push(self.glyphs.item());
+        }
+        
+        
+
+        writeln!(self.output.as_mut(), "{} {}",indent.concat().to_string(),
+        entry.file_name().to_str().unwrap());        
+    }
+
+    fn do_indent(&mut self, is_last: bool) {        
+        if is_last {            
+            self.indent.push(String::from_utf8(vec![b' '; self.sz_last]).unwrap());
+            return;
+        }
+
+        self.indent.push(self.glyphs.pipe() + String::from_utf8(vec![b' '; self.sz_item]).unwrap().as_ref());        
+    }
+
+    fn do_unindent(&mut self)   {
+        self.indent.pop();
     }
 }
