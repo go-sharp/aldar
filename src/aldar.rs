@@ -231,7 +231,7 @@ impl Aldar {
         //     println!("{}", entry.file_name().to_str().unwrap());
         // }
 
-        self.show_dir(&working_dir).ok();
+        self.show_dir(&working_dir, 0).ok();
 
         
 
@@ -243,7 +243,12 @@ impl Aldar {
     }
 
 
-    fn show_dir(&mut self, working_dir: &str) -> Result<(), Box<dyn Error>>  {
+    fn show_dir(&mut self, working_dir: &str, lvl: i32) -> Result<(), Box<dyn Error>>  {
+        // Bail out if level is reached
+        if self.level > -1 && lvl > self.level {
+            return Ok(());
+        }
+
         let dirs = self.fetch_directory(working_dir)?;
         let sz = dirs.len();
 
@@ -259,7 +264,7 @@ impl Aldar {
             if is_dir(entry.file_type()) {                
                 if let Some(p) = entry.path().to_str() {
                     self.do_indent(sz == i+1);
-                    self.show_dir(p).ok();
+                    self.show_dir(p, lvl+1).ok();
                     self.do_unindent();
                 } 
             }
@@ -326,7 +331,7 @@ impl Aldar {
         
 
         writeln!(self.output.as_mut(), "{} {}",indent.concat().to_string(),
-        entry.file_name().to_str().unwrap());        
+        entry.file_name().to_str().unwrap()).ok();        
     }
 
     fn do_indent(&mut self, is_last: bool) {        
