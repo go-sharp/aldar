@@ -10,7 +10,7 @@ use std::{
     error::Error,
     io::{self, Write},
     path::PathBuf,
-    fs::{self, DirEntry, FileType}, cmp::Ordering,
+    fs::{self, DirEntry}, cmp::Ordering,
 };
 use colored::*;
 
@@ -261,40 +261,45 @@ impl Aldar {
         Ok(())
     }
 
-    fn fetch_directory(&self, working_dir: &str) -> Result<Vec<DirEntry>, Box<dyn Error>> {
+    fn fetch_directory(&mut self, working_dir: &str) -> Result<Vec<DirEntry>, Box<dyn Error>> {
         if let Some(set) = self.exclude_matcher.as_ref() {
             if set.is_match(working_dir) {
                 return Ok(vec![])
             }
         }
 
+
         let mut entries: Vec<DirEntry> = fs::read_dir(working_dir)?.filter_map(|r| {
             if !r.is_ok() {
                 return None;
             }
             
-            let entry = r.unwrap();                   
+            let entry = r.unwrap();
+            if !self.show_hidden_files && entry.is_hidden() {
+                return None;
+            }
+
             if let Some(matcher) = self.include_matcher.as_ref() {
                 if !matcher.is_match(entry.file_name().to_str().unwrap()) {
-                    return None
+                    return None;
                 }
             }
 
             if let Some(matcher) = self.exclude_matcher.as_ref() {
                 if matcher.is_match(entry.file_name().to_str().unwrap()) {
-                    return None
+                    return None;
                 }
+            }                
+            
+            if entry.is_dir() {
+                self.proc_dirs += 1;
+            } else {
+                self.proc_files += 1;
             }
             
-            // if (&entry).is_dir() {
-            //     self.proc_dirs += 1;
-            // } else {
-            //     self.proc_files += 1;
-            // }
 
             Some(entry)
         }).collect();       
-
 
         entries.sort_by(|a, b| {
             if a.path().is_dir() && b.path().is_file() {
