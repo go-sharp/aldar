@@ -1,4 +1,4 @@
-// Copyright © 2018 The Aldar Authors
+// Copyright © 2022 The Aldar Authors
 //
 // Use of this source code is governed by an BSD-style
 // license that can be found in the LICENSE file.
@@ -13,6 +13,17 @@ use std::{
     fs::{self, DirEntry, FileType}, cmp::Ordering,
 };
 use colored::*;
+
+use crate::fsutil::AldarExt;
+
+
+const KB_SIZE: u64 = 1 << 10;
+const MB_SIZE: u64 = 1 << 20;
+const GB_SIZE: u64 = 1 << 30;
+const TB_SIZE: u64 = 1 << 40;
+const EB_SIZE: u64 = 1 << 50;
+const PB_SIZE: u64 = 1 << 60;
+
 
 /// Represents a glyphset.
 #[derive(Debug)]
@@ -216,30 +227,13 @@ impl Aldar {
         }
 
         let working_dir = self.path.to_str().unwrap_or_else(|| ".").to_string();
-        // if self.print_fullpath {
-        //     working_dir = fs::canonicalize(working_dir)?.display().to_string();
-        // }     
-        
-        
-        writeln!(self.output.as_mut(), "{}", working_dir.blue())?;
-
-
-
-        // for entry in self.fetch_directory(&working_dir)? {
-        //     self.print_entry(&entry, false);
-
-        //     println!("{}", entry.file_name().to_str().unwrap());
-        // }
+           
+        writeln!(self.output.as_mut(), "{}", working_dir.blue()).ok();
 
         self.show_dir(&working_dir, 0).ok();
 
-        
-
-        // if let Err(e) = writeln!(self.output.as_mut(), "Hello World! Bye") {
-        //     return Err(Box::new(e));
-        // }
-
-        Err(Box::new(SimpleError::new("Just a test")))
+        writeln!(self.output.as_mut(), "\n{} directories, {} files", self.proc_dirs, self.proc_files).ok();
+        Ok(())
     }
 
 
@@ -252,16 +246,10 @@ impl Aldar {
         let dirs = self.fetch_directory(working_dir)?;
         let sz = dirs.len();
 
-        let is_dir = |x: io::Result<FileType>| match x {
-            Ok(ft) => ft.is_dir(),
-             _ => false,
-        };
-
-
         for (i, entry) in dirs.iter().enumerate() {
             self.print_entry(entry, sz == i+1);
                   
-            if is_dir(entry.file_type()) {                
+            if entry.is_dir() {                
                 if let Some(p) = entry.path().to_str() {
                     self.do_indent(sz == i+1);
                     self.show_dir(p, lvl+1).ok();
@@ -284,9 +272,7 @@ impl Aldar {
             if !r.is_ok() {
                 return None;
             }
-
             
-
             let entry = r.unwrap();                   
             if let Some(matcher) = self.include_matcher.as_ref() {
                 if !matcher.is_match(entry.file_name().to_str().unwrap()) {
@@ -298,7 +284,13 @@ impl Aldar {
                 if matcher.is_match(entry.file_name().to_str().unwrap()) {
                     return None
                 }
-            }        
+            }
+            
+            // if (&entry).is_dir() {
+            //     self.proc_dirs += 1;
+            // } else {
+            //     self.proc_files += 1;
+            // }
 
             Some(entry)
         }).collect();       
@@ -327,11 +319,37 @@ impl Aldar {
         } else {
             indent.push(self.glyphs.item());
         }
-        
-        
 
-        writeln!(self.output.as_mut(), "{} {}",indent.concat().to_string(),
-        entry.file_name().to_str().unwrap()).ok();        
+        if self.print_size {
+            indent.push(self.size_as_str(entry.size()));
+        }
+
+        let mut file_name = match entry.file_name().to_os_string().to_str() {
+            Some(s) => s.to_string(),
+            _ => return,
+        };
+
+
+        if self.print_fullpath {            
+            let fp =  self.path.canonicalize();
+            if fp.is_ok() {
+                if let Some(base) = fp.unwrap().to_str() {
+                    file_name = entry.full_rel_path(base);
+                }                
+            }
+        }
+        
+        if entry.is_dir() && entry.is_hidden() {
+            file_name = file_name.purple().to_string();
+        } else if entry.is_dir() {
+            file_name = file_name.blue().to_string();
+        } else if entry.is_executable() {
+            file_name = file_name.magenta().to_string();
+        } else if entry.is_hidden() {
+            file_name = file_name.cyan().to_string();
+        }
+
+        writeln!(self.output.as_mut(), "{} {}",indent.concat().to_string(), file_name).ok();        
     }
 
     fn do_indent(&mut self, is_last: bool) {        
@@ -346,4 +364,62 @@ impl Aldar {
     fn do_unindent(&mut self)   {
         self.indent.pop();
     }
+
+    fn size_as_str(&self, sz: u64) -> String {
+
+        let create_str = |n: f64, unit: &str| -> String {
+            let str_sz: String;
+            if n.fract() == 0 as f64 {
+                str_sz = format!("{:.0}{}", n, unit);
+            } else {
+                str_sz = format!("{:.2}{}", n, unit);
+            }           
+
+            if self.human_readable {            
+                if str_sz.len() < 9 {
+                    return format!(" [{: >8}]",str_sz);
+                }
+                return format!(" [{: >8.4E}{}]",n, unit);
+            }
+            
+
+            if str_sz.len() < 12 {
+                return format!(" [{: >11}]",str_sz);
+            }
+            return format!(" [{: >11.4E}{}]",n, unit);
+        };
+
+
+        if !self.human_readable {
+          return create_str(sz as f64, "");
+        }
+
+        if sz > PB_SIZE {
+            return create_str((sz as f64)/(PB_SIZE as f64), "PB");
+        }
+
+
+        if sz > EB_SIZE {
+            return create_str((sz as f64)/(EB_SIZE as f64), "EB");
+        }
+
+        if sz > TB_SIZE {
+            return create_str((sz as f64)/(TB_SIZE as f64), "TB");
+        }
+
+        if sz > GB_SIZE {
+            return create_str((sz as f64)/(GB_SIZE as f64), "TB");
+        }
+
+        if sz > MB_SIZE {            
+            return create_str((sz as f64)/(MB_SIZE as f64), "MB");
+        }
+
+        if sz > KB_SIZE {
+            return create_str((sz as f64)/(KB_SIZE as f64), "KB");
+        }
+
+        create_str(sz as f64, "")
+    }
 }
+
