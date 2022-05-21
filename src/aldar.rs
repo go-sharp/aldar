@@ -3,19 +3,19 @@
 // Use of this source code is governed by an BSD-style
 // license that can be found in the LICENSE file.
 
+use colored::*;
 use regex::{RegexSet, RegexSetBuilder};
 use simple_error::SimpleError;
 use std::{
+    cmp::Ordering,
     env,
     error::Error,
+    fs::{self, DirEntry},
     io::{self, Write},
     path::PathBuf,
-    fs::{self, DirEntry}, cmp::Ordering,
 };
-use colored::*;
 
 use crate::fsutil::AldarExt;
-
 
 const KB_SIZE: u64 = 1 << 10;
 const MB_SIZE: u64 = 1 << 20;
@@ -23,7 +23,6 @@ const GB_SIZE: u64 = 1 << 30;
 const TB_SIZE: u64 = 1 << 40;
 const EB_SIZE: u64 = 1 << 50;
 const PB_SIZE: u64 = 1 << 60;
-
 
 /// Represents a glyphset.
 #[derive(Debug)]
@@ -208,8 +207,10 @@ impl Aldar {
         if let Some(builder) = self.include_pattern.as_mut() {
             builder.case_insensitive(self.ignore_case);
             let matcher = builder.build();
-            if matcher.is_err() {                
-                return Err(Box::new(SimpleError::new("invalid include pattern specified")))
+            if matcher.is_err() {
+                return Err(Box::new(SimpleError::new(
+                    "invalid include pattern specified",
+                )));
             }
 
             self.include_matcher = Some(matcher.unwrap());
@@ -219,25 +220,32 @@ impl Aldar {
         if let Some(builder) = self.exclude_pattern.as_mut() {
             builder.case_insensitive(self.ignore_case);
             let matcher = builder.build();
-            if matcher.is_err() {                
-                return Err(Box::new(SimpleError::new("invalid exclude pattern specified")))
+            if matcher.is_err() {
+                return Err(Box::new(SimpleError::new(
+                    "invalid exclude pattern specified",
+                )));
             }
 
             self.exclude_matcher = Some(matcher.unwrap());
         }
 
         let working_dir = self.path.to_str().unwrap_or_else(|| ".").to_string();
-           
+
         writeln!(self.output.as_mut(), "{}", working_dir.blue()).ok();
 
         self.show_dir(&working_dir, 0).ok();
 
-        writeln!(self.output.as_mut(), "\n{} directories, {} files", self.proc_dirs, self.proc_files).ok();
+        writeln!(
+            self.output.as_mut(),
+            "\n{} directories, {} files",
+            self.proc_dirs,
+            self.proc_files
+        )
+        .ok();
         Ok(())
     }
 
-
-    fn show_dir(&mut self, working_dir: &str, lvl: i32) -> Result<(), Box<dyn Error>>  {
+    fn show_dir(&mut self, working_dir: &str, lvl: i32) -> Result<(), Box<dyn Error>> {
         // Bail out if level is reached
         if self.level > -1 && lvl > self.level {
             return Ok(());
@@ -247,14 +255,14 @@ impl Aldar {
         let sz = dirs.len();
 
         for (i, entry) in dirs.iter().enumerate() {
-            self.print_entry(entry, sz == i+1);
-                  
-            if entry.is_dir() {                
+            self.print_entry(entry, sz == i + 1);
+
+            if entry.is_dir() {
                 if let Some(p) = entry.path().to_str() {
-                    self.do_indent(sz == i+1);
-                    self.show_dir(p, lvl+1).ok();
+                    self.do_indent(sz == i + 1);
+                    self.show_dir(p, lvl + 1).ok();
                     self.do_unindent();
-                } 
+                }
             }
         }
 
@@ -264,42 +272,44 @@ impl Aldar {
     fn fetch_directory(&mut self, working_dir: &str) -> Result<Vec<DirEntry>, Box<dyn Error>> {
         if let Some(set) = self.exclude_matcher.as_ref() {
             if set.is_match(working_dir) {
-                return Ok(vec![])
+                return Ok(vec![]);
             }
         }
 
-
-        let mut entries: Vec<DirEntry> = fs::read_dir(working_dir)?.filter_map(|r| {
-            if !r.is_ok() {
-                return None;
-            }
-            
-            let entry = r.unwrap();
-            if !self.show_hidden_files && entry.is_hidden() {
-                return None;
-            }
-
-            if let Some(matcher) = self.include_matcher.as_ref() {
-                if !matcher.is_match(entry.file_name().to_str().unwrap()) {
+        let mut entries: Vec<DirEntry> = fs::read_dir(working_dir)?
+            .filter_map(|r| {
+                if !r.is_ok() {
                     return None;
                 }
-            }
 
-            if let Some(matcher) = self.exclude_matcher.as_ref() {
-                if matcher.is_match(entry.file_name().to_str().unwrap()) {
+                let entry = r.unwrap();
+                if !self.show_hidden_files && entry.is_hidden() {
                     return None;
                 }
-            }                
-            
-            if entry.is_dir() {
-                self.proc_dirs += 1;
-            } else {
-                self.proc_files += 1;
-            }
-            
 
-            Some(entry)
-        }).collect();       
+                if !entry.is_dir() {
+                    if let Some(matcher) = self.include_matcher.as_ref() {
+                        if !matcher.is_match(entry.file_name().to_str().unwrap()) {
+                            return None;
+                        }
+                    }
+
+                    if let Some(matcher) = self.exclude_matcher.as_ref() {
+                        if matcher.is_match(entry.file_name().to_str().unwrap()) {
+                            return None;
+                        }
+                    }
+                }
+
+                if entry.is_dir() {
+                    self.proc_dirs += 1;
+                } else {
+                    self.proc_files += 1;
+                }
+
+                Some(entry)
+            })
+            .collect();
 
         entries.sort_by(|a, b| {
             if a.path().is_dir() && b.path().is_file() {
@@ -312,7 +322,6 @@ impl Aldar {
 
             a.path().as_path().cmp(b.path().as_path())
         });
-        
 
         Ok(entries)
     }
@@ -334,16 +343,15 @@ impl Aldar {
             _ => return,
         };
 
-
-        if self.print_fullpath {            
-            let fp =  self.path.canonicalize();
+        if self.print_fullpath {
+            let fp = self.path.canonicalize();
             if fp.is_ok() {
                 if let Some(base) = fp.unwrap().to_str() {
                     file_name = entry.full_rel_path(base);
-                }                
+                }
             }
         }
-        
+
         if entry.is_dir() && entry.is_hidden() {
             file_name = file_name.purple().to_string();
         } else if entry.is_dir() {
@@ -354,77 +362,84 @@ impl Aldar {
             file_name = file_name.cyan().to_string();
         }
 
-        writeln!(self.output.as_mut(), "{} {}",indent.concat().to_string(), file_name).ok();        
+        writeln!(
+            self.output.as_mut(),
+            "{} {}",
+            indent.concat().to_string(),
+            file_name
+        )
+        .ok();
     }
 
-    fn do_indent(&mut self, is_last: bool) {        
-        if is_last {            
-            self.indent.push(String::from_utf8(vec![b' '; self.sz_last]).unwrap());
+    fn do_indent(&mut self, is_last: bool) {
+        if is_last {
+            self.indent
+                .push(String::from_utf8(vec![b' '; self.sz_last]).unwrap());
             return;
         }
 
-        self.indent.push(self.glyphs.pipe() + String::from_utf8(vec![b' '; self.sz_item]).unwrap().as_ref());        
+        self.indent.push(
+            self.glyphs.pipe()
+                + String::from_utf8(vec![b' '; self.sz_item])
+                    .unwrap()
+                    .as_ref(),
+        );
     }
 
-    fn do_unindent(&mut self)   {
+    fn do_unindent(&mut self) {
         self.indent.pop();
     }
 
     fn size_as_str(&self, sz: u64) -> String {
-
         let create_str = |n: f64, unit: &str| -> String {
             let str_sz: String;
             if n.fract() == 0 as f64 {
                 str_sz = format!("{:.0}{}", n, unit);
             } else {
                 str_sz = format!("{:.2}{}", n, unit);
-            }           
-
-            if self.human_readable {            
-                if str_sz.len() < 9 {
-                    return format!(" [{: >8}]",str_sz);
-                }
-                return format!(" [{: >8.4E}{}]",n, unit);
             }
-            
+
+            if self.human_readable {
+                if str_sz.len() < 9 {
+                    return format!(" [{: >8}]", str_sz);
+                }
+                return format!(" [{: >8.4E}{}]", n, unit);
+            }
 
             if str_sz.len() < 12 {
-                return format!(" [{: >11}]",str_sz);
+                return format!(" [{: >11}]", str_sz);
             }
-            return format!(" [{: >11.4E}{}]",n, unit);
+            return format!(" [{: >11.4E}{}]", n, unit);
         };
 
-
         if !self.human_readable {
-          return create_str(sz as f64, "");
+            return create_str(sz as f64, "");
         }
 
         if sz > PB_SIZE {
-            return create_str((sz as f64)/(PB_SIZE as f64), "PB");
+            return create_str((sz as f64) / (PB_SIZE as f64), "PB");
         }
 
-
         if sz > EB_SIZE {
-            return create_str((sz as f64)/(EB_SIZE as f64), "EB");
+            return create_str((sz as f64) / (EB_SIZE as f64), "EB");
         }
 
         if sz > TB_SIZE {
-            return create_str((sz as f64)/(TB_SIZE as f64), "TB");
+            return create_str((sz as f64) / (TB_SIZE as f64), "TB");
         }
 
         if sz > GB_SIZE {
-            return create_str((sz as f64)/(GB_SIZE as f64), "TB");
+            return create_str((sz as f64) / (GB_SIZE as f64), "TB");
         }
 
-        if sz > MB_SIZE {            
-            return create_str((sz as f64)/(MB_SIZE as f64), "MB");
+        if sz > MB_SIZE {
+            return create_str((sz as f64) / (MB_SIZE as f64), "MB");
         }
 
         if sz > KB_SIZE {
-            return create_str((sz as f64)/(KB_SIZE as f64), "KB");
+            return create_str((sz as f64) / (KB_SIZE as f64), "KB");
         }
 
         create_str(sz as f64, "")
     }
 }
-
