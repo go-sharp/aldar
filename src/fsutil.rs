@@ -3,8 +3,9 @@
 // Use of this source code is governed by an BSD-style
 // license that can be found in the LICENSE file.
 
-use std::{fs::DirEntry, os::unix::prelude::{PermissionsExt, MetadataExt}};
-
+use std::{fs::DirEntry};
+#[cfg(unix)]
+use std::{os::unix::prelude::{PermissionsExt, MetadataExt}};
 
 pub trait AldarExt {
     fn  is_hidden(&self) -> bool;
