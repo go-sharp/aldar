@@ -8,9 +8,8 @@ mod fsutil;
 
 use clap::Parser;
 use colored::*;
-use std::process;
 use std::fs::File;
-
+use std::process;
 
 use crate::aldar::Aldar;
 
@@ -95,9 +94,10 @@ fn main() {
     if args.no_colors || args.output.is_some() {
         colored::control::set_override(false);
     }
-    
+
     let mut a = Aldar::new();
-    let aldar = a.use_path(args.path.unwrap_or_else(|| ".".to_string()))
+    let aldar = a
+        .use_path(args.path.unwrap_or_else(|| ".".to_string()))
         .show_hidden(args.all_files)
         .show_dirs_only(args.dir_only)
         .case_sensitive(args.ignore_case)
@@ -111,18 +111,21 @@ fn main() {
         .show_human_readable(args.human_readable)
         .do_replace_nonprintable_chars(args.replace_nonprintable);
 
-
     let error_str = "Error:".red();
 
-    
     if let Some(output) = args.output {
         let result = File::create(output.clone());
         if result.is_err() {
-            println!("{} failed to open file {}: {}", error_str, output, result.unwrap_err());
+            println!(
+                "{} failed to open file {}: {}",
+                error_str,
+                output,
+                result.unwrap_err()
+            );
             process::exit(1);
         }
 
-        aldar.use_writer(Box::new(result.unwrap()));        
+        aldar.use_writer(Box::new(result.unwrap()));
     }
 
     if let Some(pattern) = args.include_pattern {

@@ -12,7 +12,7 @@ use std::{
     error::Error,
     fs::{self, DirEntry},
     io::{self, Write},
-    path::PathBuf,
+    path::PathBuf, char::REPLACEMENT_CHARACTER,
 };
 
 use crate::fsutil::AldarExt;
@@ -199,6 +199,8 @@ impl Aldar {
         self
     }
 
+
+
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
         self.proc_dirs = 0;
         self.proc_files = 0;
@@ -283,8 +285,14 @@ impl Aldar {
                 }
 
                 let entry = r.unwrap();
+                // Skip hidden files except if it's required
                 if !self.show_hidden_files && entry.is_hidden() {
                     return None;
+                }
+
+                // Skip files if only directories is desired.
+                if self.dir_only && !entry.is_dir() {
+                    return None
                 }
 
                 if !entry.is_dir() {
@@ -299,7 +307,7 @@ impl Aldar {
                             return None;
                         }
                     }
-                }
+                }                
 
                 if entry.is_dir() {
                     self.proc_dirs += 1;
@@ -351,6 +359,18 @@ impl Aldar {
                 }
             }
         }
+
+
+        // This is a quite naive replacement logic, maybe replace it with some more robust function.
+        if self.replace_nonprintables {
+            file_name = file_name.chars().map(|f| {
+                if f.is_control() {
+                    return REPLACEMENT_CHARACTER;
+                }
+                f
+            }).collect();
+        }
+
 
         if entry.is_dir() && entry.is_hidden() {
             file_name = file_name.purple().to_string();
