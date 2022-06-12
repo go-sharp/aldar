@@ -86,8 +86,6 @@ struct Args {
 }
 
 fn main() {
-    // colored::control::set_override(false);
-    // println!("{} Hello, world!", "Error:".red());
     let args: Args = Args::parse();
 
     // Disable color if specified or a file is used as output
